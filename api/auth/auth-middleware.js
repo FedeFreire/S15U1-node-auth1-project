@@ -1,49 +1,59 @@
-/*
-  If the user does not have a session saved in the server
+const db = require("../../data/db-config.js");
+const bcrypt = require("bcryptjs");
+const Users = require("../users/users-model.js");
 
-  status 401
-  {
-    "message": "You shall not pass!"
+async function restricted(req, res, next) {
+  if (req.session.user) {
+    next();
+  } else {
+    next({ status: 401, message: "you shall not pass!" });
   }
-*/
-function restricted() {
+}
+async function checkUsernameFree(req, res, next) {
+  try {
+    const { username } = req.body;
+    const users = await Users.findBy({ username });
 
+    if (users.length > 0) {
+      return res.status(422).json({ message: "username taken" });
+    }
+
+    next();
+  } catch (err) {
+    next(err);
+  }
 }
 
-/*
-  If the username in req.body already exists in the database
+async function checkUsernameExists(req, res, next) {
+  try {
+    const { username, password } = req.body;
+    const [user] = await Users.findBy({ username });
 
-  status 422
-  {
-    "message": "Username taken"
+    if (user && password && bcrypt.compareSync(password, user.password)) {
+      req.session.user = user;
+      next();
+    } else {
+      next({ status: 401, message: "Invalid Credentials" });
+    }
+  } catch (err) {
+    next(err);
   }
-*/
-function checkUsernameFree() {
-
+}
+async function checkPasswordLength(req, res, next) {
+  try {
+    if (!req.body.password || req.body.password.length < 3) {
+      next({ status: 422, message: "password must be longer than 3 chars" });
+    } else {
+      next();
+    }
+  } catch (err) {
+    next(err);
+  }
 }
 
-/*
-  If the username in req.body does NOT exist in the database
-
-  status 401
-  {
-    "message": "Invalid credentials"
-  }
-*/
-function checkUsernameExists() {
-
-}
-
-/*
-  If password is missing from req.body, or if it's 3 chars or shorter
-
-  status 422
-  {
-    "message": "Password must be longer than 3 chars"
-  }
-*/
-function checkPasswordLength() {
-
-}
-
-// Don't forget to add these to the `exports` object so they can be required in other modules
+module.exports = {
+  restricted,
+  checkUsernameFree,
+  checkUsernameExists,
+  checkPasswordLength,
+};
